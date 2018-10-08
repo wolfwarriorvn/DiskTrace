@@ -43,6 +43,8 @@ SOFTWARE.
 extern struct ETWEventCounters g_EtwEventCounters;
 extern BOOL volatile g_bTracing;
 
+extern queue<sDiskioTypeGroup1> q_DiskIO;
+
 
 DEFINE_GUID ( /* 3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c */
     DiskIoGuid,
@@ -180,13 +182,27 @@ PEVENT_TRACE_PROPERTIES allocateEventTraceProperties()
 // callback function for disk I/O events
 void WINAPI eventDiskIo(PEVENT_TRACE pEvent)
 {
+	sDiskioTypeGroup1 *DiskioType;
     if( EVENT_TRACE_TYPE_IO_READ == pEvent->Header.Class.Type )
     {
-        ++g_EtwEventCounters.ullIORead;
+		q_DiskIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
+		//DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
+		++g_EtwEventCounters.ullIORead;
+		//printf("%5lu %10s %16lu %5lu\n",
+		//	DiskioType->DiskNumber,
+		//	"Read",
+		//	(DiskioType->ByteOffset)/512,
+		//	(DiskioType->TransferSize)/512);
     }
     else if( EVENT_TRACE_TYPE_IO_WRITE == pEvent->Header.Class.Type )
     {
-        ++g_EtwEventCounters.ullIOWrite;
+		++g_EtwEventCounters.ullIOWrite;
+		//DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
+		//printf("%5lu %10s %16lu %5lu\n",
+		//	DiskioType->DiskNumber,
+		//	"Write",
+		//	(DiskioType->ByteOffset)/512,
+		//	(DiskioType->TransferSize)/512);
     }
 }
 

@@ -35,6 +35,19 @@ SOFTWARE.
 #define INITGUID		//Include this #define to use SystemTraceControlGuid in Evntrace.h.
 #include <Evntrace.h>	//ETW
 #include "Common.h"
+#include <queue> 
+struct sDiskioTypeGroup1
+{
+	UINT32 DiskNumber;
+	UINT32 IrpFlags;
+	UINT32 TransferSize;
+	UINT32 Reserved;
+	INT64 ByteOffset;
+	UINT32 FileObject;
+	UINT32 Irp;
+	UINT64 HighResResponseTime;
+	UINT32 IssuingThreadId;
+};
 
 BOOL TraceEvents();
 TRACEHANDLE StartETWSession(const Profile& profile);

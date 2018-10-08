@@ -170,6 +170,7 @@ int __cdecl main(int argc, const char* argv[])
     }
 
     IORequestGenerator ioGenerator;
+	profile.SetVerbose(true);
     if (!ioGenerator.GenerateRequests(profile, *pResultParser, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut, &synch))
     {
         if (profile.GetResultsFormat() == ResultsFormat::Xml)
