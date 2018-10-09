@@ -445,6 +445,7 @@ __declspec(align(4)) static LONG volatile g_lGeneratorRunning = 0;  //used to de
 static BOOL volatile g_bError = FALSE;                              //true means there was fatal error during intialization and threads shouldn't perform their work
 
 queue<sDiskioTypeGroup1> q_DiskIO;
+queue<sDiskioTypeGroup1> q_WriteIO;
 
 VOID SetProcGroupMask(WORD wGroupNum, DWORD dwProcNum, PGROUP_AFFINITY pGroupAffinity)
 {
@@ -539,13 +540,14 @@ DWORD WINAPI etwThreadFunc(LPVOID cookie)
 DWORD WINAPI etwDebug(LPVOID cookie)
 {
 	UNREFERENCED_PARAMETER(cookie);
-
+	sDiskioTypeGroup1 DiskioTypeGroup1;
 	while (1)
 	{
-		// Pop only when queue has at least 1 element 
+		//Pop only when queue has at least 1 element 
 		if (q_DiskIO.size() > 0) {
 			// Get the data from the front of queue 
-			sDiskioTypeGroup1 DiskioTypeGroup1 = q_DiskIO.front();
+			DiskioTypeGroup1  = q_DiskIO.front();
+			//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
 			printf("%5lu %10s %16lu %5lu\n",
 				DiskioTypeGroup1.DiskNumber,
 				"Read",
@@ -554,6 +556,19 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 
 			// Pop the consumed data from queue 
 			q_DiskIO.pop();
+		}
+		if (q_WriteIO.size() > 0) {
+			// Get the data from the front of queue 
+			DiskioTypeGroup1 = q_WriteIO.front();
+			//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
+			printf("%5lu %10s %16lu %5lu\n",
+				DiskioTypeGroup1.DiskNumber,
+				"Write",
+				(DiskioTypeGroup1.ByteOffset)/512,
+				(DiskioTypeGroup1.TransferSize)/512);
+
+			// Pop the consumed data from queue 
+			q_WriteIO.pop();
 		}
 	}
 
@@ -2146,10 +2161,10 @@ bool IORequestGenerator::GenerateRequests(Profile& profile, IResultParser& resul
         }
 
         // TODO: show results only for timespans that succeeded
-        SystemInformation system;
-        EtwResultParser::ParseResults(vResults);
-        string sResults = resultParser.ParseResults(profile, system, vResults);
-        print("%s", sResults.c_str());
+        //SystemInformation system;
+        //EtwResultParser::ParseResults(vResults);
+        //string sResults = resultParser.ParseResults(profile, system, vResults);
+        //print("%s", sResults.c_str());
     }
 
     return fOk;
@@ -2157,6 +2172,7 @@ bool IORequestGenerator::GenerateRequests(Profile& profile, IResultParser& resul
 
 bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, const TimeSpan& timeSpan, Results& results, struct Synchronization *pSynch)
 {
+	HANDLE hEtwThread, hDebug;
 	memset(&g_EtwEventCounters, 0, sizeof(struct ETWEventCounters));  // reset all etw event counters
 	bool fUseETW = profile.GetEtwEnabled();            //true if user wants ETW
 	printfv(profile.GetVerbose(), "starting trace session\n");
@@ -2173,19 +2189,20 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 		//_TerminateWorkerThreads(vhThreads);
 		return false;
 	}
-
-	if (NULL == CreateThread(NULL, 64 * 1024, etwThreadFunc, NULL, 0, NULL))
+	hEtwThread = CreateThread(NULL, 64 * 1024, etwThreadFunc, NULL, 0, NULL);
+	if (NULL == hEtwThread)
 	{
 		PrintError("Warning: unable to create thread for ETW session\n");
 		//_TerminateWorkerThreads(vhThreads);
 		return false;
 	}
-	if (NULL == CreateThread(NULL, 64 * 1024, etwDebug, NULL, 0, NULL))
-	{
-		PrintError("Warning: unable to create thread for ETW session\n");
-		//_TerminateWorkerThreads(vhThreads);
-		return false;
-	}
+	//hDebug = CreateThread(NULL, 64 * 1024, etwDebug, NULL, 0, NULL);
+	//if (NULL == hDebug)
+	//{
+	//	PrintError("Warning: unable to create thread for ETW session\n");
+	//	//_TerminateWorkerThreads(vhThreads);
+	//	return false;
+	//}
 	printfv(profile.GetVerbose(), "tracing events\n");
 
 
@@ -2195,7 +2212,7 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 	//Stop ETW session
 	PEVENT_TRACE_PROPERTIES pETWSession = NULL;
 
-	printfv(profile.GetVerbose(), "stopping ETW session\n");
+	//printfv(profile.GetVerbose(), "stopping ETW session\n");
 	pETWSession = StopETWSession(hTraceSession);
 	if (NULL == pETWSession)
 	{
@@ -2203,6 +2220,46 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 		return false;
 	}
 
+	WaitForSingleObject(hEtwThread, INFINITE);
+	CloseHandle(hEtwThread);
+	//CloseHandle(hDebug);
+
+	//===================================================================================
+
+	sDiskioTypeGroup1 DiskioTypeGroup1;
+	while (!q_DiskIO.empty())
+	{
+		DiskioTypeGroup1 = q_DiskIO.front();
+		//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
+		printf("%5lu %10s %16lu %5lu\n",
+			DiskioTypeGroup1.DiskNumber,
+			"Read",
+			(DiskioTypeGroup1.ByteOffset) / 512,
+			(DiskioTypeGroup1.TransferSize) / 512);
+
+		// Pop the consumed data from queue 
+		q_DiskIO.pop();
+	}
+	while (!q_WriteIO.empty())
+	{
+		// Get the data from the front of queue 
+		DiskioTypeGroup1 = q_WriteIO.front();
+		//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
+		printf("%5lu %10s %16lu %5lu\n",
+			DiskioTypeGroup1.DiskNumber,
+			"Write",
+			(DiskioTypeGroup1.ByteOffset) / 512,
+			(DiskioTypeGroup1.TransferSize) / 512);
+
+		// Pop the consumed data from queue 
+		q_WriteIO.pop();
+	}
+
+	results.EtwEventCounters = g_EtwEventCounters;
+	printfv(profile.GetVerbose(), "Read count %lu\n", g_EtwEventCounters.ullIORead);
+	printfv(profile.GetVerbose(), "Write count %lu\n", g_EtwEventCounters.ullIOWrite);
+	printfv(profile.GetVerbose(), "tracing events\n", g_EtwEventCounters);
+	results.EtwSessionInfo = _GetResultETWSession(pETWSession);
 	return true;
 }
 

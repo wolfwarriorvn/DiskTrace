@@ -44,6 +44,7 @@ extern struct ETWEventCounters g_EtwEventCounters;
 extern BOOL volatile g_bTracing;
 
 extern queue<sDiskioTypeGroup1> q_DiskIO;
+extern queue<sDiskioTypeGroup1> q_WriteIO;
 
 
 DEFINE_GUID ( /* 3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c */
@@ -197,6 +198,7 @@ void WINAPI eventDiskIo(PEVENT_TRACE pEvent)
     else if( EVENT_TRACE_TYPE_IO_WRITE == pEvent->Header.Class.Type )
     {
 		++g_EtwEventCounters.ullIOWrite;
+		q_WriteIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
 		//DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
 		//printf("%5lu %10s %16lu %5lu\n",
 		//	DiskioType->DiskNumber,
