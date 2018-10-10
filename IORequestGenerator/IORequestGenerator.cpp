@@ -47,6 +47,7 @@ SOFTWARE.
 
 #include <chrono>
 #include <thread>
+#include <vector>
 
 #include "etw.h"
 #include <assert.h>
@@ -446,6 +447,9 @@ static BOOL volatile g_bError = FALSE;                              //true means
 
 queue<sDiskioTypeGroup1> q_DiskIO;
 queue<sDiskioTypeGroup1> q_WriteIO;
+std::vector<sDiskioTypeGroup1> vReadIO;
+std::vector<sDiskioTypeGroup1> vWriteIO;
+
 
 VOID SetProcGroupMask(WORD wGroupNum, DWORD dwProcNum, PGROUP_AFFINITY pGroupAffinity)
 {
@@ -544,9 +548,9 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 	while (1)
 	{
 		//Pop only when queue has at least 1 element 
-		if (q_DiskIO.size() > 0) {
-			// Get the data from the front of queue 
-			DiskioTypeGroup1  = q_DiskIO.front();
+		if (vReadIO.size() > 0) {
+			// Get the data from the end of array
+			DiskioTypeGroup1 = vReadIO[vReadIO.size() - 1];
 			//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
 			printf("%5lu %10s %16lu %5lu\n",
 				DiskioTypeGroup1.DiskNumber,
@@ -555,11 +559,11 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 				(DiskioTypeGroup1.TransferSize)/512);
 
 			// Pop the consumed data from queue 
-			q_DiskIO.pop();
+			vReadIO.pop_back();
 		}
-		if (q_WriteIO.size() > 0) {
+		if (vWriteIO.size() > 0) {
 			// Get the data from the front of queue 
-			DiskioTypeGroup1 = q_WriteIO.front();
+			DiskioTypeGroup1 = vWriteIO[vWriteIO.size() - 1];
 			//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
 			printf("%5lu %10s %16lu %5lu\n",
 				DiskioTypeGroup1.DiskNumber,
@@ -568,7 +572,7 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 				(DiskioTypeGroup1.TransferSize)/512);
 
 			// Pop the consumed data from queue 
-			q_WriteIO.pop();
+			vWriteIO.pop_back();
 		}
 	}
 
@@ -2179,7 +2183,7 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 	//
 	// start etw session
 	//
-	printf("Disk  |  Request  | Sector         | Length\n");
+	printf("Disk  |  Request  |     Sector   | Length\n");
 	TRACEHANDLE hTraceSession = NULL;
 
 	hTraceSession = StartETWSession(profile);
@@ -2196,18 +2200,17 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 		//_TerminateWorkerThreads(vhThreads);
 		return false;
 	}
-	//hDebug = CreateThread(NULL, 64 * 1024, etwDebug, NULL, 0, NULL);
-	//if (NULL == hDebug)
-	//{
-	//	PrintError("Warning: unable to create thread for ETW session\n");
-	//	//_TerminateWorkerThreads(vhThreads);
-	//	return false;
-	//}
-	printfv(profile.GetVerbose(), "tracing events\n");
+	hDebug = CreateThread(NULL, 0, etwDebug, NULL, 0, NULL);
+	if (NULL == hDebug)
+	{
+		PrintError("Warning: unable to create thread for ETW session\n");
+		//_TerminateWorkerThreads(vhThreads);
+		return false;
+	}
 
 
 
-	std::this_thread::sleep_for(10s);
+	std::this_thread::sleep_for(5s);
 
 	//Stop ETW session
 	PEVENT_TRACE_PROPERTIES pETWSession = NULL;
@@ -2220,40 +2223,11 @@ bool IORequestGenerator::_GenerateRequestsForTimeSpan(const Profile& profile, co
 		return false;
 	}
 
+
 	WaitForSingleObject(hEtwThread, INFINITE);
 	CloseHandle(hEtwThread);
-	//CloseHandle(hDebug);
+	CloseHandle(hDebug);
 
-	//===================================================================================
-
-	sDiskioTypeGroup1 DiskioTypeGroup1;
-	while (!q_DiskIO.empty())
-	{
-		DiskioTypeGroup1 = q_DiskIO.front();
-		//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
-		printf("%5lu %10s %16lu %5lu\n",
-			DiskioTypeGroup1.DiskNumber,
-			"Read",
-			(DiskioTypeGroup1.ByteOffset) / 512,
-			(DiskioTypeGroup1.TransferSize) / 512);
-
-		// Pop the consumed data from queue 
-		q_DiskIO.pop();
-	}
-	while (!q_WriteIO.empty())
-	{
-		// Get the data from the front of queue 
-		DiskioTypeGroup1 = q_WriteIO.front();
-		//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
-		printf("%5lu %10s %16lu %5lu\n",
-			DiskioTypeGroup1.DiskNumber,
-			"Write",
-			(DiskioTypeGroup1.ByteOffset) / 512,
-			(DiskioTypeGroup1.TransferSize) / 512);
-
-		// Pop the consumed data from queue 
-		q_WriteIO.pop();
-	}
 
 	results.EtwEventCounters = g_EtwEventCounters;
 	printfv(profile.GetVerbose(), "Read count %lu\n", g_EtwEventCounters.ullIORead);

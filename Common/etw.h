@@ -48,7 +48,11 @@ struct sDiskioTypeGroup1
 	UINT64 HighResResponseTime;
 	UINT32 IssuingThreadId;
 };
-
+struct sFileIOName
+{
+	UINT32 FileObject;
+	string FileName;
+};
 BOOL TraceEvents();
 TRACEHANDLE StartETWSession(const Profile& profile);
 PEVENT_TRACE_PROPERTIES StopETWSession(TRACEHANDLE hTraceSession);

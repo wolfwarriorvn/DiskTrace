@@ -33,6 +33,7 @@ SOFTWARE.
 #include <stdlib.h>
 
 #include <Wmistr.h>     //WNODE_HEADER
+#include <vector>
 
 #define INITGUID        //Include this #define to use SystemTraceControlGuid in Evntrace.h.
 #include <Evntrace.h>   //ETW
@@ -45,6 +46,8 @@ extern BOOL volatile g_bTracing;
 
 extern queue<sDiskioTypeGroup1> q_DiskIO;
 extern queue<sDiskioTypeGroup1> q_WriteIO;
+extern std::vector<sDiskioTypeGroup1> vReadIO;
+extern std::vector<sDiskioTypeGroup1> vWriteIO;
 
 
 DEFINE_GUID ( /* 3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c */
@@ -186,7 +189,10 @@ void WINAPI eventDiskIo(PEVENT_TRACE pEvent)
 	sDiskioTypeGroup1 *DiskioType;
     if( EVENT_TRACE_TYPE_IO_READ == pEvent->Header.Class.Type )
     {
-		q_DiskIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
+		vReadIO.push_back(*(sDiskioTypeGroup1*)pEvent->MofData);
+		DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
+		sFileIOName *FileIOName = (sFileIOName*)DiskioType->FileObject;
+		//q_DiskIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
 		//DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
 		++g_EtwEventCounters.ullIORead;
 		//printf("%5lu %10s %16lu %5lu\n",
@@ -198,7 +204,8 @@ void WINAPI eventDiskIo(PEVENT_TRACE pEvent)
     else if( EVENT_TRACE_TYPE_IO_WRITE == pEvent->Header.Class.Type )
     {
 		++g_EtwEventCounters.ullIOWrite;
-		q_WriteIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
+		vWriteIO.push_back(*(sDiskioTypeGroup1*)pEvent->MofData);
+		//q_WriteIO.push(*(sDiskioTypeGroup1*)pEvent->MofData);
 		//DiskioType = (sDiskioTypeGroup1*)pEvent->MofData;
 		//printf("%5lu %10s %16lu %5lu\n",
 		//	DiskioType->DiskNumber,
@@ -207,7 +214,15 @@ void WINAPI eventDiskIo(PEVENT_TRACE pEvent)
 		//	(DiskioType->TransferSize)/512);
     }
 }
-
+/*****************************************************************************/
+// callback function for disk I/O events
+void WINAPI eventFileIo(PEVENT_TRACE pEvent)
+{
+	if (0 == pEvent->Header.Class.Type)
+	{
+		sFileIOName FileIOName = *((sFileIOName*)pEvent->MofData);
+	}
+}
 /*****************************************************************************/
 // callback function for LoadImage events
 //
@@ -428,6 +443,10 @@ TRACEHANDLE StartETWSession(const Profile& profile)
         pProperties->EnableFlags |= EVENT_TRACE_FLAG_DISK_IO;
         SetTraceCallback(&DiskIoGuid, eventDiskIo);
     }
+	{
+		pProperties->EnableFlags |= EVENT_TRACE_FLAG_FILE_IO;
+		SetTraceCallback(&FileIoGuid, eventFileIo);
+	}
 
     if (profile.GetEtwMemoryPageFaults())
     {
