@@ -50,7 +50,7 @@ public:
     {
 
     }
-
+	bool GenerateIORequests(Profile& profile);
     bool GenerateRequests(Profile& profile, IResultParser& resultParser, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose, struct Synchronization *pSynch);
     static UINT64 GetNextFileOffset(ThreadParameters& tp, size_t targetNum, UINT64 prevOffset);
 

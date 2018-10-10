@@ -2146,6 +2146,72 @@ bool IORequestGenerator::_PrecreateFiles(Profile& profile) const
 
     return fOk;
 }
+bool IORequestGenerator::GenerateIORequests(Profile& profile)
+{
+	HANDLE hEtwThread, hDebug;
+	memset(&g_EtwEventCounters, 0, sizeof(struct ETWEventCounters));  // reset all etw event counters
+	bool fUseETW = profile.GetEtwEnabled();            //true if user wants ETW
+	printfv(profile.GetVerbose(), "starting trace session\n");
+	//
+	// start etw session
+	//
+	printf("Disk  |  Request  |     Sector   | Length\n");
+	TRACEHANDLE hTraceSession = NULL;
+
+	hTraceSession = StartETWSession(profile);
+	if (NULL == hTraceSession)
+	{
+		PrintError("Could not start ETW session\n");
+		//_TerminateWorkerThreads(vhThreads);
+		return false;
+	}
+	hEtwThread = CreateThread(NULL, 64 * 1024, etwThreadFunc, NULL, 0, NULL);
+	if (NULL == hEtwThread)
+	{
+		PrintError("Warning: unable to create thread for ETW session\n");
+		//_TerminateWorkerThreads(vhThreads);
+		return false;
+	}
+	hDebug = CreateThread(NULL, 0, etwDebug, NULL, 0, NULL);
+	if (NULL == hDebug)
+	{
+		PrintError("Warning: unable to create thread for ETW session\n");
+		//_TerminateWorkerThreads(vhThreads);
+		return false;
+	}
+
+
+
+	std::this_thread::sleep_for(5s);
+
+	//Stop ETW session
+	PEVENT_TRACE_PROPERTIES pETWSession = NULL;
+
+	//printfv(profile.GetVerbose(), "stopping ETW session\n");
+	pETWSession = StopETWSession(hTraceSession);
+	if (NULL == pETWSession)
+	{
+		PrintError("Error stopping ETW session\n");
+		return false;
+	}
+
+
+	WaitForSingleObject(hEtwThread, INFINITE);
+	TerminateThread(hDebug, INFINITE);
+	if (NULL != hEtwThread)
+	{
+		CloseHandle(hEtwThread);
+	}
+	if (NULL != hDebug)
+	{
+		CloseHandle(hDebug);
+	}
+
+	printf( "Read count %lu\n", g_EtwEventCounters.ullIORead);
+	printf("Write count %lu\n", g_EtwEventCounters.ullIOWrite);
+	printf("tracing events\n", g_EtwEventCounters);
+	return true;
+}
 
 bool IORequestGenerator::GenerateRequests(Profile& profile, IResultParser& resultParser, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose, struct Synchronization *pSynch)
 {

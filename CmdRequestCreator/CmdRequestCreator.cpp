@@ -122,26 +122,6 @@ int __cdecl main(int argc, const char* argv[])
     {
         return ERROR_PARSE_CMD_LINE;
     }
-
-    synch.pfnCallbackTestStarted = TestStarted;
-    synch.pfnCallbackTestFinished = TestFinished;
-
-    //
-    // create abort event if stop event is not explicitly provided by the user (otherwise use the stop event)
-    //
-
-    if (NULL == synch.hStopEvent)
-    {
-        synch.hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if( NULL == synch.hStopEvent )
-        {
-            fprintf(stderr, "Unable to create an abort event for CTRL+C\n");
-            //FUTURE EXTENSION: change error code
-            return 1;
-        }
-    }
-    g_hAbortEvent = synch.hStopEvent;   // set abort event to either stop event provided by user or the just created event
-
     //
     // capture ctrl+c
     //
@@ -154,44 +134,15 @@ int __cdecl main(int argc, const char* argv[])
 
     TraceLoggingRegister(g_hEtwProvider);
 
-    //
-    // call IO request generator
-    //
-    ResultParser resultParser;
-    XmlResultParser xmlResultParser;
-    IResultParser *pResultParser = nullptr;
-    if (profile.GetResultsFormat() == ResultsFormat::Xml)
-    {
-        pResultParser = &xmlResultParser;
-    }
-    else
-    {
-        pResultParser = &resultParser;
-    }
-
     IORequestGenerator ioGenerator;
 	profile.SetVerbose(true);
-    if (!ioGenerator.GenerateRequests(profile, *pResultParser, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut, &synch))
-    {
-        if (profile.GetResultsFormat() == ResultsFormat::Xml)
-        {
-            fprintf(stderr, "\n");
-        }
+	if (!ioGenerator.GenerateIORequests(profile))
+	{
+		fprintf(stderr, "Error generating I/O requests\n");
+		return 1;
+	}
+	TraceLoggingUnregister(g_hEtwProvider);
 
-        fprintf(stderr, "Error generating I/O requests\n");
-        return 1;
-    }
-
-    TraceLoggingUnregister(g_hEtwProvider);
-
-    if( NULL != synch.hStartEvent )
-    {
-        CloseHandle(synch.hStartEvent);
-    }
-    if( NULL != synch.hStopEvent )
-    {
-        CloseHandle(synch.hStopEvent);
-    }
     if( g_hEventStarted )
     {
         CloseHandle(g_hEventStarted);
