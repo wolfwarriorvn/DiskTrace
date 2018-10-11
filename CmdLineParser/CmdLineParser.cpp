@@ -1414,7 +1414,7 @@ bool CmdLineParser::ParseCmdLine(const int argc, const char *argv[], Profile *pP
 
     if (argc == 2 && (argv[1][0] == '-' || argv[1][0] == '/') && argv[1][1] == 'X' && argv[1][2] != '\0')
     {
-        fOk = _ReadParametersFromXmlFile(argv[1] + 2, pProfile);
+        //fOk = _ReadParametersFromXmlFile(argv[1] + 2, pProfile);
         fCmdLine = false;
     }
     else
@@ -1426,10 +1426,10 @@ bool CmdLineParser::ParseCmdLine(const int argc, const char *argv[], Profile *pP
     // check additional restrictions and conditions on the passed parameters.
     // note that on the cmdline, all targets receive the same parameters so
     // that their mutual consistency only needs to be checked once.
-    if (fOk)
-    {
-        fOk = pProfile->Validate(fCmdLine, pSystem);
-    }
+    //if (fOk)
+    //{
+    //    fOk = pProfile->Validate(fCmdLine, pSystem);
+    //}
 
     return fOk;
 }

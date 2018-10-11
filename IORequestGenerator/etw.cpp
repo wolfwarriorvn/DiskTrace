@@ -411,32 +411,32 @@ TRACEHANDLE StartETWSession(const Profile& profile)
 
     pProperties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
 
-    //use paged memory
-    if (profile.GetEtwUsePagedMemory())
-    {
-        pProperties->LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY;
-    }
+    ////use paged memory
+    //if (profile.GetEtwUsePagedMemory())
+    //{
+    //    pProperties->LogFileMode |= EVENT_TRACE_USE_PAGED_MEMORY;
+    //}
 
     //
     // event classes
     //
-    if (profile.GetEtwProcess())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_PROCESS;
-        SetTraceCallback(&ProcessGuid, eventProcess);
-    }
+    //if (profile.GetEtwProcess())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_PROCESS;
+    //    SetTraceCallback(&ProcessGuid, eventProcess);
+    //}
 
-    if (profile.GetEtwThread())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_THREAD;
-        SetTraceCallback(&ThreadGuid, eventThread);
-    }
+    //if (profile.GetEtwThread())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_THREAD;
+    //    SetTraceCallback(&ThreadGuid, eventThread);
+    //}
 
-    if (profile.GetEtwImageLoad())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_IMAGE_LOAD;
-        SetTraceCallback(&ImageLoadGuid, eventLoadImage);
-    }
+    //if (profile.GetEtwImageLoad())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_IMAGE_LOAD;
+    //    SetTraceCallback(&ImageLoadGuid, eventLoadImage);
+    //}
 
     if (profile.GetEtwDiskIO())
     {
@@ -448,30 +448,30 @@ TRACEHANDLE StartETWSession(const Profile& profile)
 		SetTraceCallback(&FileIoGuid, eventFileIo);
 	}
 
-    if (profile.GetEtwMemoryPageFaults())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_MEMORY_PAGE_FAULTS;
-        SetTraceCallback(&PageFaultGuid, eventPageFault);
-    }
+    //if (profile.GetEtwMemoryPageFaults())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_MEMORY_PAGE_FAULTS;
+    //    SetTraceCallback(&PageFaultGuid, eventPageFault);
+    //}
 
-    if (profile.GetEtwMemoryHardFaults())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_MEMORY_HARD_FAULTS;
-        SetTraceCallback(&PageFaultGuid, eventPageFault);
-    }
+    //if (profile.GetEtwMemoryHardFaults())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_MEMORY_HARD_FAULTS;
+    //    SetTraceCallback(&PageFaultGuid, eventPageFault);
+    //}
 
-    if (profile.GetEtwNetwork())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_NETWORK_TCPIP;
-        SetTraceCallback(&TcpIpGuid, eventTcpIp);
-        SetTraceCallback(&UdpIpGuid, eventUdpIp);
-    }
+    //if (profile.GetEtwNetwork())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_NETWORK_TCPIP;
+    //    SetTraceCallback(&TcpIpGuid, eventTcpIp);
+    //    SetTraceCallback(&UdpIpGuid, eventUdpIp);
+    //}
 
-    if (profile.GetEtwRegistry())
-    {
-        pProperties->EnableFlags |= EVENT_TRACE_FLAG_REGISTRY;
-        SetTraceCallback(&RegistryGuid, eventRegistry);
-    }
+    //if (profile.GetEtwRegistry())
+    //{
+    //    pProperties->EnableFlags |= EVENT_TRACE_FLAG_REGISTRY;
+    //    SetTraceCallback(&RegistryGuid, eventRegistry);
+    //}
 
     //
     // timer
@@ -491,16 +491,34 @@ TRACEHANDLE StartETWSession(const Profile& profile)
 
     pProperties->Wnode.Guid = SystemTraceControlGuid;
 
-    TRACEHANDLE hTraceSession;
-    ULONG ret = StartTrace(&hTraceSession, KERNEL_LOGGER_NAME, pProperties);
-    free(pProperties);
-    if (ERROR_SUCCESS != ret)
-    {
-        PrintError("Error starting trace session\n");
-        return 0;
-    }
 
-    return hTraceSession;
+
+    TRACEHANDLE hTraceSession;
+	int trace_retry = 4;
+	do
+	{
+		ULONG ret = StartTrace(&hTraceSession, KERNEL_LOGGER_NAME, pProperties);
+		
+		if (ERROR_SUCCESS != ret)
+		{
+			PEVENT_TRACE_PROPERTIES pProperties;
+
+			pProperties = allocateEventTraceProperties();
+			if (NULL == pProperties)
+			{
+				return NULL;
+			}
+			ULONG ret = ControlTrace(hTraceSession, KERNEL_LOGGER_NAME, pProperties, EVENT_TRACE_CONTROL_STOP);
+			if (ERROR_SUCCESS != ret)
+			{
+				PrintError("Error stopping trace session\n");
+				return NULL;
+			}
+		}
+		else return hTraceSession;
+	} while (--trace_retry);
+
+    return 0;
 }
 
 /*****************************************************************************/
@@ -518,7 +536,7 @@ PEVENT_TRACE_PROPERTIES StopETWSession(TRACEHANDLE hTraceSession)
 
     ULONG ret;
 
-    ret = ControlTrace(hTraceSession, NULL, pProperties, EVENT_TRACE_CONTROL_STOP);
+    ret = ControlTrace(hTraceSession, KERNEL_LOGGER_NAME, pProperties, EVENT_TRACE_CONTROL_STOP);
     if( ERROR_SUCCESS != ret )
     {
         PrintError("Error stopping trace session\n");

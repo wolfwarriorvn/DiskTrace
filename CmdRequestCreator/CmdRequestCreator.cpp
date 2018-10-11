@@ -77,6 +77,7 @@ BOOL WINAPI ctrlCRoutine(DWORD dwCtrlType)
             fprintf(stderr, "Warning: Setting abort event failed (error code: %u)\n", GetLastError());
         }
         SetConsoleCtrlHandler(ctrlCRoutine, FALSE);
+		exit(1);
 
         //indicate that the signal has been handled
         return TRUE;
@@ -109,20 +110,6 @@ void TestFinished()
 int __cdecl main(int argc, const char* argv[])
 {
     //
-    // parse cmd line parameters
-    //
-    struct Synchronization synch;        //sychronization structure
-    synch.ulStructSize = sizeof(synch);
-    synch.hStopEvent = NULL;
-    synch.hStartEvent = NULL;
-
-    CmdLineParser cmdLineParser;
-    Profile profile;
-    if (!cmdLineParser.ParseCmdLine(argc, argv, &profile, &synch, &g_SystemInformation))
-    {
-        return ERROR_PARSE_CMD_LINE;
-    }
-    //
     // capture ctrl+c
     //
     if( !SetConsoleCtrlHandler(ctrlCRoutine, TRUE) )
@@ -135,8 +122,10 @@ int __cdecl main(int argc, const char* argv[])
     TraceLoggingRegister(g_hEtwProvider);
 
     IORequestGenerator ioGenerator;
+	Profile profile;
 	profile.SetVerbose(true);
-	if (!ioGenerator.GenerateIORequests(profile))
+	profile.SetEtwDiskIO(true);
+	if (!ioGenerator.GenerateIORequests(profile, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut))
 	{
 		fprintf(stderr, "Error generating I/O requests\n");
 		return 1;
