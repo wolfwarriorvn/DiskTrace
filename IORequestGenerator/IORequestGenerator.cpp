@@ -445,10 +445,12 @@ __declspec(align(4)) static LONG volatile g_lGeneratorRunning = 0;  //used to de
 
 static BOOL volatile g_bError = FALSE;                              //true means there was fatal error during intialization and threads shouldn't perform their work
 
-queue<sDiskioTypeGroup1> q_DiskIO;
-queue<sDiskioTypeGroup1> q_WriteIO;
+
+std::mutex mReadWriteEvent; // Mutex to protect this vector
 std::vector<sDiskioTypeGroup1> vReadIO;
 std::vector<sDiskioTypeGroup1> vWriteIO;
+
+extern HANDLE g_hAbortEvent;
 
 
 VOID SetProcGroupMask(WORD wGroupNum, DWORD dwProcNum, PGROUP_AFFINITY pGroupAffinity)
@@ -533,7 +535,10 @@ DWORD WINAPI etwThreadFunc(LPVOID cookie)
     UNREFERENCED_PARAMETER(cookie);
 
     g_bTracing = TRUE;
+	printf("ETW Thread Func -----------------------------\n");
     BOOL result = TraceEvents();
+
+	printf("Stop ETW -----------------------------\n");
     g_bTracing = FALSE;
 
     return result ? 0 : 1;
@@ -546,11 +551,12 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 	UNREFERENCED_PARAMETER(cookie);
 	sDiskioTypeGroup1 DiskioTypeGroup1;
 	clock_t begin_time = clock();
-	while (1)
+	while (g_bTracing)
 	{
 		//Pop only when queue has at least 1 element 
 		if (vReadIO.size() > 0) {
 			// Get the data from the end of array
+			std::lock_guard<std::mutex> lg(mReadWriteEvent); 
 			DiskioTypeGroup1 = vReadIO[vReadIO.size() - 1];
 			//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
 			printf("%f	%5lu	%10s	%16lu	%5lu\n",
@@ -564,7 +570,8 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 			vReadIO.pop_back();
 		}
 		if (vWriteIO.size() > 0) {
-			// Get the data from the front of queue 
+			// Get the data from the front of queue
+			std::lock_guard<std::mutex> lg(mReadWriteEvent); 
 			DiskioTypeGroup1 = vWriteIO[vWriteIO.size() - 1];
 			//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
 			printf("%f	%5lu	%10s	%16lu	%5lu\n",
@@ -578,8 +585,8 @@ DWORD WINAPI etwDebug(LPVOID cookie)
 			vWriteIO.pop_back();
 		}
 	}
-
-	return 0;
+	printf("Stop debug ------------------\n");
+	return 1;
 }
 
 /*****************************************************************************/
@@ -2149,7 +2156,7 @@ bool IORequestGenerator::_PrecreateFiles(Profile& profile) const
 
     return fOk;
 }
-bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose)
+bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose, struct Synchronization *sync)
 {
 	g_pfnPrintOut = pPrintOut;
 	g_pfnPrintError = pPrintError;
@@ -2189,7 +2196,13 @@ bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, 
 
 
 
-	std::this_thread::sleep_for(5s);
+	assert(NULL != sync->hStopEvent);
+	DWORD dwWaitStatus = WaitForSingleObject(sync->hStopEvent, 1000 * 5);
+	if (WAIT_OBJECT_0 != dwWaitStatus && WAIT_TIMEOUT != dwWaitStatus)
+	{
+		printf("Error during WaitForSingleObject\n");
+		return FALSE;
+	}
 
 	//Stop ETW session
 	PEVENT_TRACE_PROPERTIES pETWSession = NULL;
@@ -2202,8 +2215,8 @@ bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, 
 		return false;
 	}
 
-
 	WaitForSingleObject(hEtwThread, INFINITE);
+	WaitForSingleObject(hDebug, INFINITE);
 	//TerminateThread(hDebug, INFINITE);
 	if (NULL != hEtwThread)
 	{

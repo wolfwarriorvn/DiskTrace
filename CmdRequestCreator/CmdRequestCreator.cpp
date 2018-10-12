@@ -44,7 +44,7 @@ SOFTWARE.
 
 /*****************************************************************************/
 // global variables
-static HANDLE g_hAbortEvent = NULL;     // handle to the 'abort' event
+ HANDLE g_hAbortEvent = NULL;     // handle to the 'abort' event
                                         // it allows stopping I/O Request Generator in the middle of its work
                                         // the results of its work will be passed to the Results Parser
 static HANDLE g_hEventStarted = NULL;   // event signalled to notify that the actual (measured) test is to be started
@@ -77,7 +77,6 @@ BOOL WINAPI ctrlCRoutine(DWORD dwCtrlType)
             fprintf(stderr, "Warning: Setting abort event failed (error code: %u)\n", GetLastError());
         }
         SetConsoleCtrlHandler(ctrlCRoutine, FALSE);
-		exit(1);
 
         //indicate that the signal has been handled
         return TRUE;
@@ -109,6 +108,27 @@ void TestFinished()
 /*****************************************************************************/
 int __cdecl main(int argc, const char* argv[])
 {
+	struct Synchronization synch;        //sychronization structure
+	synch.ulStructSize = sizeof(synch);
+	synch.hStopEvent = NULL;
+	synch.hStartEvent = NULL;
+
+	//
+// create abort event if stop event is not explicitly provided by the user (otherwise use the stop event)
+//
+
+	if (NULL == synch.hStopEvent)
+	{
+		synch.hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		if (NULL == synch.hStopEvent)
+		{
+			fprintf(stderr, "Unable to create an abort event for CTRL+C\n");
+			//FUTURE EXTENSION: change error code
+			return 1;
+		}
+	}
+	g_hAbortEvent = synch.hStopEvent;   // set abort event to either stop event provided by user or the just created event
+
     //
     // capture ctrl+c
     //
@@ -125,7 +145,7 @@ int __cdecl main(int argc, const char* argv[])
 	Profile profile;
 	profile.SetVerbose(true);
 	profile.SetEtwDiskIO(true);
-	if (!ioGenerator.GenerateIORequests(profile, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut))
+	if (!ioGenerator.GenerateIORequests(profile, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut, &synch ))
 	{
 		fprintf(stderr, "Error generating I/O requests\n");
 		return 1;

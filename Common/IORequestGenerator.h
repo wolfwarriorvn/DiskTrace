@@ -32,6 +32,8 @@ SOFTWARE.
 #include <Evntrace.h>   //ETW
 #include <Winternl.h>   //ntdll.dll
 
+#include <mutex>
+
 
 void PrintError(const char *format, ...);
 void *ManagedMalloc(size_t size);
@@ -50,7 +52,7 @@ public:
     {
 
     }
-	bool GenerateIORequests(Profile& profile, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose);
+	bool GenerateIORequests(Profile& profile, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose, struct Synchronization *sync);
     bool GenerateRequests(Profile& profile, IResultParser& resultParser, PRINTF pPrintOut, PRINTF pPrintError, PRINTF pPrintVerbose, struct Synchronization *pSynch);
     static UINT64 GetNextFileOffset(ThreadParameters& tp, size_t targetNum, UINT64 prevOffset);
 
