@@ -113,6 +113,12 @@ int __cdecl main(int argc, const char* argv[])
 	synch.hStopEvent = NULL;
 	synch.hStartEvent = NULL;
 
+	CmdLineParser cmdLineParser;
+	Profile profile;
+	if (!cmdLineParser.ParseCmdInfo(argc, argv, &profile))
+	{
+		return ERROR_PARSE_CMD_LINE;
+	}
 	//
 // create abort event if stop event is not explicitly provided by the user (otherwise use the stop event)
 //
@@ -142,8 +148,8 @@ int __cdecl main(int argc, const char* argv[])
     TraceLoggingRegister(g_hEtwProvider);
 
     IORequestGenerator ioGenerator;
-	Profile profile;
-	profile.SetVerbose(true);
+	//Profile profile;
+	//profile.SetVerbose(true);
 	profile.SetEtwDiskIO(true);
 	if (!ioGenerator.GenerateIORequests(profile, (PRINTF)PrintOut, (PRINTF)PrintError, (PRINTF)PrintOut, &synch ))
 	{

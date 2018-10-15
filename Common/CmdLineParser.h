@@ -38,6 +38,7 @@ public:
     CmdLineParser();
     ~CmdLineParser();
 
+	bool ParseCmdInfo(const int argc, const char *argv[], Profile *pProfile);
     bool ParseCmdLine(const int argc, const char *argv[], Profile *pProfile, struct Synchronization *synch, SystemInformation *pSystem = nullptr);
 
 private:
@@ -49,6 +50,7 @@ private:
     bool _ParseAffinity(const char *arg, TimeSpan *pTimeSpan);
 
     void _DisplayUsageInfo(const char *pszFilename) const;
+	void _UsageInfo(const char *pszFileName) const;
     bool _GetSizeInBytes(const char *pszSize, UINT64& ullSize) const;
     bool _GetRandomDataWriteBufferData(const string& sArg, UINT64& cb, string& sPath);
 

@@ -1271,6 +1271,7 @@ class Profile
 public:
     Profile() :
         _fVerbose(false),
+		_sTimeSpan(0),
         _dwProgress(0),
         _fEtwEnabled(false),
         _fEtwProcess(false),
@@ -1317,6 +1318,12 @@ public:
     void SetPrecreateFiles(PrecreateFiles c) { _precreateFiles = c; }
     PrecreateFiles GetPrecreateFiles() const { return _precreateFiles; }
 
+	void SetLogFile(string log) { _sLogFile = log; }
+	string GetLogFile() const { return _sLogFile; }
+
+	void SetTimeSpan(UINT32 time) { _sTimeSpan = time; }
+	UINT32 GetTimeSpan() const { return _sTimeSpan; }
+
     //ETW
     void SetEtwEnabled(bool b)          { _fEtwEnabled = b; }
     void SetEtwProcess(bool b)          { _fEtwProcess = b; }
@@ -1352,6 +1359,8 @@ public:
 
 private:
     Profile(const Profile& T);
+	string _sLogFile;
+	UINT32 _sTimeSpan;
 
     vector<TimeSpan>_vTimeSpans;
     bool _fVerbose;

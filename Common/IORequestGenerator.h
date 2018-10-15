@@ -44,6 +44,12 @@ namespace UnitTests
 
 #define FIRST_OFFSET 0xFFFFFFFFFFFFFFFFULL
 
+
+struct sDebugArgs
+{
+	string logfile;
+	bool bVerbose;
+};
 class IORequestGenerator
 {
 public:

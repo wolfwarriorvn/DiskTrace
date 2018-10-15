@@ -45,6 +45,11 @@ SOFTWARE.
 
 #include <Wmistr.h>     //WNODE_HEADER
 
+#include <iostream>		//IO stream
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+
 #include <chrono>
 #include <thread>
 #include <vector>
@@ -548,44 +553,57 @@ DWORD WINAPI etwThreadFunc(LPVOID cookie)
 //
 DWORD WINAPI etwDebug(LPVOID cookie)
 {
-	UNREFERENCED_PARAMETER(cookie);
+	////UNREFERENCED_PARAMETER(cookie);
+	sDebugArgs DebugArgs = *((sDebugArgs*)cookie);
 	sDiskioTypeGroup1 DiskioTypeGroup1;
 	clock_t begin_time = clock();
+	FILE * pFile;
+	errno_t err = fopen_s(&pFile, DebugArgs.logfile.c_str(), "w");
 	while (g_bTracing)
 	{
-		//Pop only when queue has at least 1 element 
 		if (vReadIO.size() > 0) {
-			// Get the data from the end of array
 			std::lock_guard<std::mutex> lg(mReadWriteEvent); 
 			DiskioTypeGroup1 = vReadIO[vReadIO.size() - 1];
-			//printf("Read: %lu\n", DiskioTypeGroup1.TransferSize);
-			printf("%f	%5lu	%10s	%16lu	%5lu\n",
-				float(clock() / CLOCKS_PER_SEC),
+			fprintf(pFile, "%f	%5lu	%10s	%16lu	%5lu\n",
+				clock() / (double)CLOCKS_PER_SEC,
 				DiskioTypeGroup1.DiskNumber,
 				"Read",
-				(DiskioTypeGroup1.ByteOffset)/512,
-				(DiskioTypeGroup1.TransferSize)/512);
-
-			// Pop the consumed data from queue 
+				(DiskioTypeGroup1.ByteOffset) / 512,
+				(DiskioTypeGroup1.TransferSize) / 512);
+			if (DebugArgs.bVerbose)
+			{
+				printf("%f	%5lu	%10s	%16lu	%5lu\n",
+					clock() / (double)CLOCKS_PER_SEC,
+					DiskioTypeGroup1.DiskNumber,
+					"Read",
+					(DiskioTypeGroup1.ByteOffset) / 512,
+					(DiskioTypeGroup1.TransferSize) / 512);
+			}
 			vReadIO.pop_back();
 		}
 		if (vWriteIO.size() > 0) {
-			// Get the data from the front of queue
 			std::lock_guard<std::mutex> lg(mReadWriteEvent); 
 			DiskioTypeGroup1 = vWriteIO[vWriteIO.size() - 1];
-			//printf("Write: %lu\n", DiskioTypeGroup1.TransferSize);
-			printf("%f	%5lu	%10s	%16lu	%5lu\n",
-				float(clock() / CLOCKS_PER_SEC),
+			fprintf(pFile, "%f	%5lu	%10s	%16lu	%5lu\n",
+				clock() / (double)CLOCKS_PER_SEC,
 				DiskioTypeGroup1.DiskNumber,
 				"Write",
-				(DiskioTypeGroup1.ByteOffset)/512,
-				(DiskioTypeGroup1.TransferSize)/512);
+				(DiskioTypeGroup1.ByteOffset) / 512,
+				(DiskioTypeGroup1.TransferSize) / 512);
 
-			// Pop the consumed data from queue 
+			if (DebugArgs.bVerbose)
+			{
+				printf("%f	%5lu	%10s	%16lu	%5lu\n",
+					clock() / (double)CLOCKS_PER_SEC,
+					DiskioTypeGroup1.DiskNumber,
+					"Read",
+					(DiskioTypeGroup1.ByteOffset) / 512,
+					(DiskioTypeGroup1.TransferSize) / 512);
+			}
 			vWriteIO.pop_back();
 		}
 	}
-	printf("Stop debug ------------------\n");
+	fclose(pFile);
 	return 1;
 }
 
@@ -2186,7 +2204,8 @@ bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, 
 		//_TerminateWorkerThreads(vhThreads);
 		return false;
 	}
-	hDebug = CreateThread(NULL, 0, etwDebug, NULL, 0, NULL);
+	sDebugArgs DebugArgs = { profile.GetLogFile(),profile.GetVerbose() };
+	hDebug = CreateThread(NULL, 0, etwDebug, &DebugArgs, 0, NULL);
 	if (NULL == hDebug)
 	{
 		PrintError("Warning: unable to create thread for ETW session\n");
@@ -2194,10 +2213,11 @@ bool IORequestGenerator::GenerateIORequests(Profile& profile, PRINTF pPrintOut, 
 		return false;
 	}
 
-
+	
 
 	assert(NULL != sync->hStopEvent);
-	DWORD dwWaitStatus = WaitForSingleObject(sync->hStopEvent, 1000 * 5);
+	UINT32 timeOut = (profile.GetTimeSpan() > 0) ? 1000 * profile.GetTimeSpan() : INFINITE;
+	DWORD dwWaitStatus = WaitForSingleObject(sync->hStopEvent, timeOut);
 	if (WAIT_OBJECT_0 != dwWaitStatus && WAIT_TIMEOUT != dwWaitStatus)
 	{
 		printf("Error during WaitForSingleObject\n");
